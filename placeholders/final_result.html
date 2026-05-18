@@ -211,7 +211,7 @@
           verdictHTML = '<span class="px-2.5 py-1 rounded text-[11px] font-bold tracking-wider bg-rose-50 text-rose-700 border border-rose-100 uppercase">FAIL</span>';
         }
 
-        const dateStr = row.inspection_date ? row.inspection_date.split(' ')[0] : 'N/A';
+        const dateStr = formatDateDMY(row.inspection_date);
 
         html += `
           <tr class="hover:bg-white/60 transition-colors group cursor-pointer">
@@ -225,6 +225,9 @@
               <button onclick="viewReportDetail('${row.general_id}', this)" class="text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100">
                 Xem chi tiết
               </button>
+              <button onclick="exportToPDF('${row.general_id}')" class="text-indigo-500 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-lg transition-colors ml-1 opacity-0 group-hover:opacity-100 focus:opacity-100" title="Xuất PDF">
+                <i data-feather="file-text" class="w-4 h-4"></i>
+              </button>
             </td>
           </tr>
         `;
@@ -236,6 +239,39 @@
 
       tableBody.innerHTML = html;
       feather.replace();
+    }
+
+    function parseDate(str) {
+      if (!str) return null;
+      const dateOnly = String(str).trim().split(' ')[0];
+      
+      const dmyMatch = dateOnly.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (dmyMatch) {
+        const day = parseInt(dmyMatch[1], 10);
+        const month = parseInt(dmyMatch[2], 10) - 1;
+        const year = parseInt(dmyMatch[3], 10);
+        return new Date(year, month, day, 12, 0, 0);
+      }
+      
+      const ymdMatch = dateOnly.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+      if (ymdMatch) {
+        const year = parseInt(ymdMatch[1], 10);
+        const month = parseInt(ymdMatch[2], 10) - 1;
+        const day = parseInt(ymdMatch[3], 10);
+        return new Date(year, month, day, 12, 0, 0);
+      }
+      
+      const d = new Date(dateOnly + 'T12:00:00');
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    function formatDateDMY(dateStr) {
+      const d = parseDate(dateStr);
+      if (!d) return 'N/A';
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
     }
 
     function onTimePresetChange() {
@@ -325,10 +361,8 @@
 
         // Lọc theo Ngày tháng
         if (startDate || endDate) {
-          const insDateStr = row.inspection_date ? row.inspection_date.split(' ')[0] : '';
-          if (!insDateStr) return false;
-          
-          const insDate = new Date(insDateStr + 'T12:00:00'); // Dùng 12:00:00 tránh lệch múi giờ local
+          const insDate = parseDate(row.inspection_date);
+          if (!insDate) return false;
           
           if (startDate && insDate < startDate) return false;
           if (endDate && insDate > endDate) return false;
