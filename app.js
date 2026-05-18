@@ -166,17 +166,21 @@ function toggleMobileDrawer(isOpen) {
   if (isOpen) {
     drawer.classList.remove('pointer-events-none');
     drawer.classList.add('pointer-events-auto');
-    overlay.classList.remove('opacity-0');
-    overlay.classList.add('opacity-100');
-    panel.classList.remove('-translate-x-full');
-    panel.classList.add('translate-x-0');
+    
+    overlay.classList.remove('opacity-0', 'pointer-events-none');
+    overlay.classList.add('opacity-100', 'pointer-events-auto');
+    
+    panel.classList.remove('-translate-x-full', 'pointer-events-none');
+    panel.classList.add('translate-x-0', 'pointer-events-auto');
   } else {
     drawer.classList.remove('pointer-events-auto');
     drawer.classList.add('pointer-events-none');
-    overlay.classList.remove('opacity-100');
-    overlay.classList.add('opacity-0');
-    panel.classList.remove('translate-x-0');
-    panel.classList.add('-translate-x-full');
+    
+    overlay.classList.remove('opacity-100', 'pointer-events-auto');
+    overlay.classList.add('opacity-0', 'pointer-events-none');
+    
+    panel.classList.remove('translate-x-0', 'pointer-events-auto');
+    panel.classList.add('-translate-x-full', 'pointer-events-none');
   }
 }
 
