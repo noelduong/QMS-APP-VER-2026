@@ -52,6 +52,15 @@ function loadModule(moduleId) {
     } else if (moduleId === 'return' || moduleId === 'feedback') {
       document.getElementById('nav-data-analysis').classList.add('active');
     }
+
+    // Sync mobile drawer active classes too
+    document.querySelectorAll('.mobile-drawer-item').forEach(el => {
+      el.classList.remove('active');
+    });
+    const mNav = document.getElementById('mobile-nav-' + moduleId);
+    if (mNav) {
+      mNav.classList.add('active');
+    }
   }
 
   // Update page title
@@ -147,7 +156,39 @@ function showTopbar() {
   document.body.appendChild(btn);
 })();
 
-/* ---- Mobile Menu Toggle ---- */
+/* ---- Mobile Navigation Drawer ---- */
+function toggleMobileDrawer(isOpen) {
+  const drawer = document.getElementById('mobile-drawer');
+  const overlay = document.getElementById('drawer-overlay');
+  const panel = document.getElementById('drawer-panel');
+  if (!drawer || !overlay || !panel) return;
+
+  if (isOpen) {
+    drawer.classList.remove('pointer-events-none');
+    drawer.classList.add('pointer-events-auto');
+    overlay.classList.remove('opacity-0');
+    overlay.classList.add('opacity-100');
+    panel.classList.remove('-translate-x-full');
+    panel.classList.add('translate-x-0');
+  } else {
+    drawer.classList.remove('pointer-events-auto');
+    drawer.classList.add('pointer-events-none');
+    overlay.classList.remove('opacity-100');
+    overlay.classList.add('opacity-0');
+    panel.classList.remove('translate-x-0');
+    panel.classList.add('-translate-x-full');
+  }
+}
+
+function loadMobileModule(moduleId) {
+  // Call the core loader
+  loadModule(moduleId);
+
+  // Auto-close drawer
+  toggleMobileDrawer(false);
+}
+
+/* ---- Mobile Menu Trigger ---- */
 document.getElementById('mobile-menu-btn')?.addEventListener('click', () => {
-  document.querySelector('.topbar').classList.toggle('mobile-open');
+  toggleMobileDrawer(true);
 });
