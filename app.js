@@ -2,31 +2,31 @@
 
 const MODULES = {
   'inspection_final': {
-    title: 'Final Result',
+    title: 'FINAL RESULT',
     url: 'placeholders/final_result.html'
   },
   'inspection_inline': {
-    title: 'Inline Result',
+    title: 'INLINE RESULT',
     url: 'placeholders/inline_result.html'
   },
   'inspection_form': {
-    title: 'Inspection Form',
+    title: 'INSPECTION FORM',
     url: 'inspection_form/index.html'
   },
   'return': {
-    title: 'Return Analysis',
+    title: 'RETURN ANALYSIS',
     url: 'placeholders/return.html'
   },
   'feedback': {
-    title: 'Feedback Rate',
+    title: 'FEEDBACK RATE',
     url: 'placeholders/feedback.html'
   },
   'plan': {
-    title: 'Planning',
+    title: 'PLANNING',
     url: 'placeholders/plan.html'
   },
   'overall': {
-    title: 'Overall Dashboard',
+    title: 'OVERALL DASHBOARD',
     url: 'placeholders/overall.html'
   }
 };
