@@ -203,13 +203,47 @@ function renderDefectRows() {
   `;
 
   defectRows.forEach((row, i) => {
+    // Ensure row.images is initialized safely
+    if (!row.images) {
+      row.images = [];
+      if (row.image && typeof row.image === 'string' && row.image.includes(',')) {
+        row.image.split(',').forEach(url => {
+          const trimmed = url.trim();
+          if (trimmed) row.images.push({ image: trimmed, previewUrl: trimmed, localImageBase64: null });
+        });
+      } else if (row.previewUrl || row.image || row.localImageBase64) {
+        row.images.push({
+          image: row.image || "",
+          previewUrl: row.previewUrl || "",
+          localImageBase64: row.localImageBase64 || null
+        });
+      }
+    }
+
     let imageCellHtml = '';
-    if (row.previewUrl || row.image) {
+    if (row.images.length > 0) {
+      let thumbsHtml = '';
+      row.images.forEach((img, imgIndex) => {
+        const src = img.previewUrl || img.image;
+        if (src) {
+          thumbsHtml += `
+            <div class="relative inline-block group/img w-10 h-10">
+              <img src="${src}" class="w-10 h-10 object-cover rounded-lg border border-slate-200 shadow-sm cursor-pointer hover:scale-105 transition-transform" onclick="window.open('${src}', '_blank')">
+              <button onclick="removeDefectImage(${i}, ${imgIndex})" class="absolute -top-1.5 -right-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px] shadow-md transition-colors" title="Xóa ảnh">✕</button>
+            </div>
+          `;
+        }
+      });
       imageCellHtml = `
         <td class="p-2 border-r border-black/5 text-center">
-          <div class="relative inline-block group/img">
-            <img src="${row.previewUrl || row.image}" class="w-12 h-12 object-cover rounded-lg border border-slate-200 shadow-sm cursor-pointer hover:scale-105 transition-transform" onclick="window.open('${row.previewUrl || row.image}', '_blank')">
-            <button onclick="removeDefectImage(${i})" class="absolute -top-1.5 -right-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] shadow-md transition-colors" title="Xóa ảnh">✕</button>
+          <div class="flex flex-wrap items-center justify-center gap-1.5">
+            ${thumbsHtml}
+            <div class="relative inline-block w-10 h-10">
+              <input type="file" accept="image/*" multiple id="def-img-input-${i}" class="hidden" onchange="handleDefectImageChange(${i}, this)">
+              <label for="def-img-input-${i}" class="cursor-pointer flex items-center justify-center w-10 h-10 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors border border-dashed border-slate-300" title="Thêm ảnh">
+                <i data-feather="plus" class="w-4 h-4"></i>
+              </label>
+            </div>
           </div>
         </td>
       `;
@@ -217,7 +251,7 @@ function renderDefectRows() {
       imageCellHtml = `
         <td class="p-2 border-r border-black/5 text-center">
           <div class="flex flex-col items-center justify-center">
-            <input type="file" accept="image/*" id="def-img-input-${i}" class="hidden" onchange="handleDefectImageChange(${i}, this)">
+            <input type="file" accept="image/*" multiple id="def-img-input-${i}" class="hidden" onchange="handleDefectImageChange(${i}, this)">
             <label for="def-img-input-${i}" class="cursor-pointer inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors border border-slate-200 shadow-sm">
               <i data-feather="image" class="w-3.5 h-3.5"></i> Chọn ảnh
             </label>
@@ -282,24 +316,56 @@ function removeDefectRow(i) {
 }
 
 window.handleDefectImageChange = function(index, input) {
-  const file = input.files[0];
-  if (!file) return;
+  const files = input.files;
+  if (!files || files.length === 0) return;
 
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    defectRows[index].localImageBase64 = e.target.result;
-    defectRows[index].previewUrl = e.target.result;
-    renderDefectRows();
-  };
-  reader.readAsDataURL(file);
+  const row = defectRows[index];
+  if (!row.images) {
+    row.images = [];
+  }
+
+  let loadedCount = 0;
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      row.images.push({
+        localImageBase64: e.target.result,
+        previewUrl: e.target.result,
+        image: null
+      });
+      loadedCount++;
+      if (loadedCount === files.length) {
+        // Sync first image for backward compatibility
+        row.localImageBase64 = row.images[0].localImageBase64;
+        row.previewUrl = row.images[0].previewUrl;
+        row.image = row.images.map(img => img.image).filter(url => url).join(', ');
+        
+        renderDefectRows();
+      }
+    };
+    reader.readAsDataURL(file);
+  }
 };
 
-window.removeDefectImage = function(index) {
+window.removeDefectImage = function(index, imgIndex) {
   if (defectRows[index]) {
-    defectRows[index].localImageBase64 = null;
-    defectRows[index].previewUrl = null;
-    defectRows[index].image = null;
-    renderDefectRows();
+    const row = defectRows[index];
+    if (row.images && row.images[imgIndex] !== undefined) {
+      row.images.splice(imgIndex, 1);
+      
+      // Sync legacy fields
+      if (row.images.length === 0) {
+        row.localImageBase64 = null;
+        row.previewUrl = null;
+        row.image = null;
+      } else {
+        row.localImageBase64 = row.images[0].localImageBase64 || null;
+        row.previewUrl = row.images[0].previewUrl || null;
+        row.image = row.images.map(img => img.image).filter(url => url).join(', ');
+      }
+      renderDefectRows();
+    }
   }
 };
 
@@ -552,17 +618,37 @@ function exportInspectionPDF() {
     rows: mRows
   };
 
-  const detailRows = defectRows.map(r => ({
-    section: r.section,
-    point: r.point || r.section,
-    description: r.desc,
-    quantity: r.qty,
-    critical: r.critical,
-    major: r.major,
-    minor: r.minor,
-    corrective: r.action,
-    image: r.previewUrl || r.image || ""
-  })).filter(r => r.description || r.quantity > 0 || r.critical > 0 || r.major > 0 || r.minor > 0 || r.corrective || r.image);
+  const detailRows = defectRows.map(r => {
+    // Ensure r.images is initialized safely
+    if (!r.images) {
+      r.images = [];
+      if (r.image && typeof r.image === 'string' && r.image.includes(',')) {
+        r.image.split(',').forEach(url => {
+          const trimmed = url.trim();
+          if (trimmed) r.images.push({ image: trimmed, previewUrl: trimmed, localImageBase64: null });
+        });
+      } else if (r.previewUrl || r.image || r.localImageBase64) {
+        r.images.push({
+          image: r.image || "",
+          previewUrl: r.previewUrl || "",
+          localImageBase64: r.localImageBase64 || null
+        });
+      }
+    }
+    const currentImagesStr = r.images.map(img => img.previewUrl || img.image).filter(url => url).join(', ');
+
+    return {
+      section: r.section,
+      point: r.point || r.section,
+      description: r.desc,
+      quantity: r.qty,
+      critical: r.critical,
+      major: r.major,
+      minor: r.minor,
+      corrective: r.action,
+      image: currentImagesStr
+    };
+  }).filter(r => r.description || r.quantity > 0 || r.critical > 0 || r.major > 0 || r.minor > 0 || r.corrective || r.image);
 
   const summary = {
     meas_qty: meas.fail,
@@ -590,13 +676,35 @@ function exportInspectionPDF() {
   };
 
   const thumbs = defectRows
-    .filter(r => r.previewUrl || r.image)
-    .map(r => `
-      <div style="display:inline-block;margin:8px;text-align:center;border:1px solid #ddd;padding:6px;border-radius:8px;background:#fcfcfc;page-break-inside:avoid;">
-        <img src="${r.previewUrl || r.image}" style="width:120px;height:120px;object-fit:cover;border-radius:6px;display:block;margin-bottom:4px;">
-        <div style="font-size:10px;color:#666;max-width:120px;word-break:break-all;">${escapeHtml(r.desc || r.section)}</div>
-      </div>
-    `).join("");
+    .filter(r => (r.images && r.images.length) || r.previewUrl || r.image)
+    .flatMap(r => {
+      // Ensure r.images is initialized safely
+      if (!r.images) {
+        r.images = [];
+        if (r.image && typeof r.image === 'string' && r.image.includes(',')) {
+          r.image.split(',').forEach(url => {
+            const trimmed = url.trim();
+            if (trimmed) r.images.push({ image: trimmed, previewUrl: trimmed, localImageBase64: null });
+          });
+        } else if (r.previewUrl || r.image || r.localImageBase64) {
+          r.images.push({
+            image: r.image || "",
+            previewUrl: r.previewUrl || "",
+            localImageBase64: r.localImageBase64 || null
+          });
+        }
+      }
+      return r.images.map(img => {
+        const src = img.previewUrl || img.image;
+        if (!src) return '';
+        return `
+          <div style="display:inline-block;margin:8px;text-align:center;border:1px solid #ddd;padding:6px;border-radius:8px;background:#fcfcfc;page-break-inside:avoid;">
+            <img src="${src}" style="width:120px;height:120px;object-fit:cover;border-radius:6px;display:block;margin-bottom:4px;">
+            <div style="font-size:10px;color:#666;max-width:120px;word-break:break-all;">${escapeHtml(r.desc || r.section)}</div>
+          </div>
+        `;
+      }).filter(h => h !== '');
+    }).join("");
 
   const measurementHtml = (() => {
     if (!measurementDataPdf || !measurementDataPdf.points || !measurementDataPdf.points.length || !measurementDataPdf.sizes || !measurementDataPdf.sizes.length) {
@@ -669,7 +777,7 @@ function exportInspectionPDF() {
       <td>${escapeHtml(row.major)}</td>
       <td>${escapeHtml(row.minor)}</td>
       <td class="pdf-note">${escapeHtml(row.corrective)}</td>
-      <td>${row.image ? `<img src="${row.image}" style="max-width:80px;max-height:80px;border-radius:4px;object-fit:cover;">` : "—"}</td>
+      <td>${row.image ? row.image.split(',').map(url => `<img src="${url.trim()}" style="max-width:80px;max-height:80px;border-radius:4px;object-fit:cover;margin:2px;display:inline-block;">`).join("") : "—"}</td>
     </tr>
       `).join("")
       : `<tr><td colspan="8">No appearance/detail data</td></tr>`;
@@ -1241,28 +1349,52 @@ async function submitToDatabase() {
     // First, upload all local images in bulk
     for (let i = 0; i < defectRows.length; i++) {
       const r = defectRows[i];
-      if (r.localImageBase64 && !r.image) {
-        console.log(`[QMS] Uploading defect image for row ${i}...`);
-        const statusEl = document.getElementById('submit-status');
-        if (statusEl) {
-          statusEl.innerHTML = `<span class="text-indigo-600 font-semibold">Đang tải ảnh lỗi dòng ${i + 1}/${defectRows.length} lên Drive...</span>`;
-        }
-        try {
-          const imgResult = await QMS_API.uploadImageBase64({
-            general_id: generalId,
-            fileName: `defect_${Date.now()}_${i}.jpg`,
-            contentBase64: r.localImageBase64
+      // Ensure r.images is initialized safely
+      if (!r.images) {
+        r.images = [];
+        if (r.image && typeof r.image === 'string' && r.image.includes(',')) {
+          r.image.split(',').forEach(url => {
+            const trimmed = url.trim();
+            if (trimmed) r.images.push({ image: trimmed, previewUrl: trimmed, localImageBase64: null });
           });
-          if (imgResult.ok && imgResult.url) {
-            r.image = imgResult.url;
-            console.log(`[QMS] Uploaded image successfully: ${r.image}`);
-          } else {
-            console.warn(`[QMS] Image upload failed:`, imgResult.err);
-          }
-        } catch (imgErr) {
-          console.error(`[QMS] Image upload error:`, imgErr);
+        } else if (r.previewUrl || r.image || r.localImageBase64) {
+          r.images.push({
+            image: r.image || "",
+            previewUrl: r.previewUrl || "",
+            localImageBase64: r.localImageBase64 || null
+          });
         }
       }
+
+      for (let j = 0; j < r.images.length; j++) {
+        const img = r.images[j];
+        if (img.localImageBase64 && !img.image) {
+          console.log(`[QMS] Uploading defect image ${j + 1} for row ${i}...`);
+          const statusEl = document.getElementById('submit-status');
+          if (statusEl) {
+            statusEl.innerHTML = `<span class="text-indigo-600 font-semibold">Đang tải ảnh lỗi dòng ${i + 1} (ảnh ${j + 1}/${r.images.length}) lên Drive...</span>`;
+          }
+          try {
+            const imgResult = await QMS_API.uploadImageBase64({
+              general_id: generalId,
+              fileName: `defect_${Date.now()}_${i}_${j}.jpg`,
+              contentBase64: img.localImageBase64
+            });
+            if (imgResult.ok && imgResult.url) {
+              img.image = imgResult.url;
+              console.log(`[QMS] Uploaded image successfully: ${img.image}`);
+            } else {
+              console.warn(`[QMS] Image upload failed:`, imgResult.err);
+            }
+          } catch (imgErr) {
+            console.error(`[QMS] Image upload error:`, imgErr);
+          }
+        }
+      }
+
+      // Sync back to r.image as a comma-separated string of non-empty URLs
+      const uploadedUrls = r.images.map(img => img.image).filter(url => url);
+      r.image = uploadedUrls.join(', ');
     }
 
     const detailRows = defectRows

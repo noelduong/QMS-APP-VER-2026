@@ -652,11 +652,14 @@
 
         const thumbs = detailRows
           .filter(r => r.image)
-          .map(r => `
-            <div style="display:inline-block;margin:8px;text-align:center;border:1px solid #ddd;padding:6px;border-radius:8px;background:#fcfcfc;page-break-inside:avoid;">
-              <img src="${escapeHtml(getDirectDriveUrl(r.image))}" style="width:120px;height:120px;object-fit:cover;border-radius:6px;display:block;cursor:pointer;" onclick="window.open('${escapeHtml(r.image)}','_blank')">
-            </div>
-          `).join("");
+          .flatMap(r => {
+            const urls = String(r.image).split(',').map(url => url.trim()).filter(url => url);
+            return urls.map(url => `
+              <div style="display:inline-block;margin:8px;text-align:center;border:1px solid #ddd;padding:6px;border-radius:8px;background:#fcfcfc;page-break-inside:avoid;">
+                <img src="${escapeHtml(getDirectDriveUrl(url))}" style="width:120px;height:120px;object-fit:cover;border-radius:6px;display:block;cursor:pointer;" onclick="window.open('${escapeHtml(url)}','_blank')">
+              </div>
+            `);
+          }).join("");
 
         const finalClass = summary.final_result === "PASS" ? "pdf-result-pass" : "pdf-result-fail";
         const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
