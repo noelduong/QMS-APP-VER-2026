@@ -93,12 +93,45 @@
 
     <!-- Filter & Refresh Actions -->
     <div class="flex flex-wrap items-center gap-3 self-start xl:self-auto">
-      <!-- Date filters -->
-      <div class="flex items-center bg-white border border-slate-200/80 rounded-2xl px-3 py-1.5 shadow-sm gap-2">
+      <!-- Filter Mode Selector (Ngày / Tuần / Tháng) -->
+      <div class="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200">
+        <button onclick="setFilterMode('day')" id="btn-filter-day" class="px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all duration-300 bg-white text-indigo-600 shadow-sm border border-slate-200/50">Ngày</button>
+        <button onclick="setFilterMode('week')" id="btn-filter-week" class="px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all duration-300 text-slate-500 hover:text-slate-900">Tuần</button>
+        <button onclick="setFilterMode('month')" id="btn-filter-month" class="px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all duration-300 text-slate-500 hover:text-slate-900">Tháng</button>
+      </div>
+
+      <!-- Container: Day -->
+      <div id="filter-container-day" class="flex items-center bg-white border border-slate-200/80 rounded-2xl px-3 py-1.5 shadow-sm gap-2">
         <span class="text-[10px] font-black text-slate-400 uppercase tracking-wider">Từ</span>
         <input type="date" id="filter-start-date" onchange="applyFilters()" class="text-xs font-bold text-slate-700 focus:outline-none cursor-pointer">
         <span class="text-[10px] font-black text-slate-400 uppercase tracking-wider border-l pl-2 border-slate-200">Đến</span>
         <input type="date" id="filter-end-date" onchange="applyFilters()" class="text-xs font-bold text-slate-700 focus:outline-none cursor-pointer">
+      </div>
+
+      <!-- Container: Week -->
+      <div id="filter-container-week" class="relative shrink-0 hidden">
+        <select id="filter-week" onchange="applyFilters()" class="appearance-none bg-white border border-slate-200/80 rounded-2xl pl-10 pr-10 py-2.5 text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer min-w-[260px]">
+          <!-- Populate dynamically -->
+        </select>
+        <div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+          <i data-feather="calendar" class="w-4 h-4"></i>
+        </div>
+        <div class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+          <i data-feather="chevron-down" class="w-4 h-4"></i>
+        </div>
+      </div>
+
+      <!-- Container: Month -->
+      <div id="filter-container-month" class="relative shrink-0 hidden">
+        <select id="filter-month" onchange="applyFilters()" class="appearance-none bg-white border border-slate-200/80 rounded-2xl pl-10 pr-10 py-2.5 text-xs font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer min-w-[180px]">
+          <!-- Populate dynamically -->
+        </select>
+        <div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+          <i data-feather="calendar" class="w-4 h-4"></i>
+        </div>
+        <div class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+          <i data-feather="chevron-down" class="w-4 h-4"></i>
+        </div>
       </div>
 
       <!-- Factory dropdown -->
@@ -355,6 +388,11 @@
     let overallDonutInstance = null;
     let factoryQualityBarInstance = null;
 
+    // Filters state
+    let currentFilterMode = 'day'; // 'day' | 'week' | 'month'
+    let weekOptions = [];
+    let monthOptions = [];
+
     // Load data on window load
     window.addEventListener('DOMContentLoaded', () => {
       // Default date ranges to current month
@@ -372,6 +410,14 @@
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
+    }
+
+    // Helper: get the Thursday date of a week containing a given date (ISO-8601 week ownership rule)
+    function getThursday(d) {
+      const date = new Date(d.getTime());
+      const day = (date.getDay() + 6) % 7; // Monday is 0, Sunday is 6
+      date.setDate(date.getDate() - day + 3); // Monday + 3 days is Thursday
+      return date;
     }
 
     async function loadData() {
@@ -426,11 +472,175 @@
           factoryFilter.value = activeSelection;
         }
 
+        // Generate dynamic dropdown choices for Weeks of Months and Months
+        generatePeriodSelectors();
+
         applyFilters();
       } catch (err) {
         console.error("Lỗi khi tải dữ liệu từ Google Sheets:", err);
         showError(`Không thể tải dữ liệu: ${err.message}`);
       }
+    }
+
+    function generatePeriodSelectors() {
+      // Gather all unique dates from plans and actual inspections
+      const dates = [];
+      allPlans.forEach(p => {
+        const d = parseDate(p.date);
+        if (d) dates.push(d);
+      });
+      allFinalGens.forEach(row => {
+        const d = parseDate(row.inspection_date);
+        if (d) dates.push(d);
+      });
+
+      if (dates.length === 0) {
+        dates.push(new Date());
+      }
+
+      // Sort dates to find boundaries
+      dates.sort((a, b) => a - b);
+      const minDate = new Date(dates[0].getTime());
+      const maxDate = new Date(dates[dates.length - 1].getTime());
+
+      // Extend to full months boundary
+      minDate.setDate(1);
+      maxDate.setMonth(maxDate.getMonth() + 1);
+      maxDate.setDate(0);
+
+      // 1. Generate calendar weeks (Monday to Sunday)
+      const startMonday = new Date(minDate.getTime());
+      const dayOffset = (startMonday.getDay() + 6) % 7;
+      startMonday.setDate(startMonday.getDate() - dayOffset);
+
+      const weeks = [];
+      const tempDate = new Date(startMonday.getTime());
+      while (tempDate <= maxDate) {
+        const mon = new Date(tempDate.getTime());
+        const sun = new Date(tempDate.getTime());
+        sun.setDate(sun.getDate() + 6);
+
+        // Get Thursday to determine ownership month (>50% days rule)
+        const thu = getThursday(mon);
+        const ownerMonth = thu.getMonth();
+        const ownerYear = thu.getFullYear();
+        const key = `${ownerYear}-${String(ownerMonth + 1).padStart(2, '0')}`;
+
+        weeks.push({ mon, sun, key });
+
+        // Next week
+        tempDate.setDate(tempDate.getDate() + 7);
+      }
+
+      // Group weeks by ownerMonth key
+      const weeksByMonth = {};
+      weeks.forEach(w => {
+        if (!weeksByMonth[w.key]) {
+          weeksByMonth[w.key] = [];
+        }
+        weeksByMonth[w.key].push(w);
+      });
+
+      // Generate sequential Week Options grouped by Month
+      weekOptions = [];
+      const sortedMonthKeys = Object.keys(weeksByMonth).sort();
+      sortedMonthKeys.forEach(mKey => {
+        const [yearStr, monthStr] = mKey.split("-");
+        const monthNum = parseInt(monthStr, 10);
+        const yearNum = parseInt(yearStr, 10);
+
+        // Sort weeks inside this month chronologically
+        const monthWeeks = weeksByMonth[mKey].sort((a, b) => a.mon - b.mon);
+        monthWeeks.forEach((w, idx) => {
+          const weekNum = idx + 1;
+          const monStr = `${String(w.mon.getDate()).padStart(2, '0')}/${String(w.mon.getMonth() + 1).padStart(2, '0')}`;
+          const sunStr = `${String(w.sun.getDate()).padStart(2, '0')}/${String(w.sun.getMonth() + 1).padStart(2, '0')}`;
+          
+          weekOptions.push({
+            label: `Tuần ${weekNum} (Tháng ${monthNum}/${yearNum}) [${monStr} - ${sunStr}]`,
+            start: new Date(w.mon.getFullYear(), w.mon.getMonth(), w.mon.getDate(), 0, 0, 0),
+            end: new Date(w.sun.getFullYear(), w.sun.getMonth(), w.sun.getDate(), 23, 59, 59)
+          });
+        });
+      });
+
+      // Populate Week dropdown
+      const weekSelect = document.getElementById('filter-week');
+      if (weekSelect) {
+        weekSelect.innerHTML = weekOptions.map((opt, i) => {
+          return `<option value="${i}">${opt.label}</option>`;
+        }).join("");
+        if (weekOptions.length > 0) {
+          weekSelect.value = weekOptions.length - 1; // Default to latest week
+        }
+      }
+
+      // Generate Month Options
+      const months = [];
+      const mTemp = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+      const mMax = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+      while (mTemp <= mMax) {
+        months.push(new Date(mTemp.getTime()));
+        mTemp.setMonth(mTemp.getMonth() + 1);
+      }
+
+      monthOptions = months.map(m => {
+        const y = m.getFullYear();
+        const monVal = m.getMonth();
+        const start = new Date(y, monVal, 1, 0, 0, 0);
+        const end = new Date(y, monVal + 1, 0, 23, 59, 59);
+        return {
+          label: `Tháng ${monVal + 1}/${y}`,
+          start,
+          end
+        };
+      });
+
+      // Populate Month dropdown
+      const monthSelect = document.getElementById('filter-month');
+      if (monthSelect) {
+        monthSelect.innerHTML = monthOptions.map((opt, i) => {
+          return `<option value="${i}">${opt.label}</option>`;
+        }).join("");
+        
+        // Default to current month if in list
+        const currentMonthIdx = monthOptions.findIndex(opt => {
+          const now = new Date();
+          return opt.start.getMonth() === now.getMonth() && opt.start.getFullYear() === now.getFullYear();
+        });
+        if (currentMonthIdx !== -1) {
+          monthSelect.value = currentMonthIdx;
+        } else if (monthOptions.length > 0) {
+          monthSelect.value = monthOptions.length - 1;
+        }
+      }
+    }
+
+    function setFilterMode(mode) {
+      currentFilterMode = mode;
+
+      // Update Tab Styles
+      ['day', 'week', 'month'].forEach(m => {
+        const btn = document.getElementById(`btn-filter-${m}`);
+        if (!btn) return;
+        if (m === mode) {
+          btn.className = "px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all duration-300 bg-white text-indigo-600 shadow-sm border border-slate-200/50";
+        } else {
+          btn.className = "px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all duration-300 text-slate-500 hover:text-slate-900";
+        }
+
+        // Hide/Show dynamic inputs
+        const container = document.getElementById(`filter-container-${m}`);
+        if (container) {
+          if (m === mode) {
+            container.classList.remove('hidden');
+          } else {
+            container.classList.add('hidden');
+          }
+        }
+      });
+
+      applyFilters();
     }
 
     function showLoading() {
@@ -465,13 +675,38 @@
       }
     }
 
+    function getActiveDateRange() {
+      let startDate = null;
+      let endDate = null;
+      let label = "";
+      if (currentFilterMode === 'day') {
+        const startVal = document.getElementById('filter-start-date').value;
+        const endVal = document.getElementById('filter-end-date').value;
+        startDate = startVal ? new Date(startVal + "T00:00:00") : null;
+        endDate = endVal ? new Date(endVal + "T23:59:59") : null;
+        label = (startVal && endVal) ? `${startVal} to ${endVal}` : "All Time";
+      } else if (currentFilterMode === 'week') {
+        const weekIdx = parseInt(document.getElementById('filter-week').value, 10);
+        if (!isNaN(weekIdx) && weekOptions[weekIdx]) {
+          startDate = weekOptions[weekIdx].start;
+          endDate = weekOptions[weekIdx].end;
+          label = weekOptions[weekIdx].label;
+        }
+      } else if (currentFilterMode === 'month') {
+        const monthIdx = parseInt(document.getElementById('filter-month').value, 10);
+        if (!isNaN(monthIdx) && monthOptions[monthIdx]) {
+          startDate = monthOptions[monthIdx].start;
+          endDate = monthOptions[monthIdx].end;
+          label = monthOptions[monthIdx].label;
+        }
+      }
+      return { startDate, endDate, label };
+    }
+
     function applyFilters() {
       const selectedFactory = document.getElementById('filter-factory').value;
-      const startDateVal = document.getElementById('filter-start-date').value;
-      const endDateVal = document.getElementById('filter-end-date').value;
-
-      const startDate = startDateVal ? new Date(startDateVal + "T00:00:00") : null;
-      const endDate = endDateVal ? new Date(endDateVal + "T23:59:59") : null;
+      
+      const { startDate, endDate } = getActiveDateRange();
 
       // Filter plans by Factory and Date
       let filteredPlans = allPlans;
@@ -886,10 +1121,7 @@
       nameHeader.textContent = factoryName.toUpperCase();
       
       // Get filtered plans & inspections specifically for this factory
-      const startDateVal = document.getElementById('filter-start-date').value;
-      const endDateVal = document.getElementById('filter-end-date').value;
-      const startDate = startDateVal ? new Date(startDateVal + "T00:00:00") : null;
-      const endDate = endDateVal ? new Date(endDateVal + "T23:59:59") : null;
+      const { startDate, endDate } = getActiveDateRange();
 
       // Plans for this factory
       const facPlans = allPlans.filter(p => {
@@ -1029,13 +1261,28 @@
     // Export Statistics as CSV
     function exportCSV() {
       const factoryFilter = document.getElementById('filter-factory').value;
-      const startDateVal = document.getElementById('filter-start-date').value;
-      const endDateVal = document.getElementById('filter-end-date').value;
+      const { startDate, endDate } = getActiveDateRange();
 
       // Group statistics per factory exactly as rendered
       const factoryMap = {};
 
-      allPlans.forEach(p => {
+      const filteredPlans = allPlans.filter(p => {
+        const pDate = parseDate(p.date);
+        if (!pDate) return false;
+        if (startDate && pDate < startDate) return false;
+        if (endDate && pDate > endDate) return false;
+        return true;
+      });
+
+      const filteredInspections = allFinalGens.filter(row => {
+        const insDate = parseDate(row.inspection_date);
+        if (!insDate) return false;
+        if (startDate && insDate < startDate) return false;
+        if (endDate && insDate > endDate) return false;
+        return true;
+      });
+
+      filteredPlans.forEach(p => {
         const fac = String(p.factory || p.fob || p.supplier || p["nhà máy"] || p.fob_supplier || "Khác").trim();
         if (!factoryMap[fac]) {
           factoryMap[fac] = { planned: new Set(), inspected: new Set(), passCount: 0, failCount: 0 };
@@ -1044,7 +1291,7 @@
         if (key && key !== "-" && key !== "0") factoryMap[fac].planned.add(key);
       });
 
-      allFinalGens.forEach(row => {
+      filteredInspections.forEach(row => {
         const fac = String(row.fob_supplier || "Khác").trim();
         if (!factoryMap[fac]) {
           factoryMap[fac] = { planned: new Set(), inspected: new Set(), passCount: 0, failCount: 0 };
@@ -1093,7 +1340,8 @@
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.setAttribute("href", url);
-      link.setAttribute("download", `QMS_Overall_Performance_${startDateVal || 'start'}_to_${endDateVal || 'end'}.csv`);
+      const dateSuffix = (startDate && endDate) ? `${formatDateIso(startDate)}_to_${formatDateIso(endDate)}` : 'all_time';
+      link.setAttribute("download", `QMS_Overall_Performance_${dateSuffix}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
