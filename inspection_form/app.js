@@ -294,7 +294,6 @@ window.handleOverallDefectImageChange = function(input) {
   const files = input.files;
   if (!files || files.length === 0) return;
 
-  let loadedCount = 0;
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     const reader = new FileReader();
@@ -304,10 +303,7 @@ window.handleOverallDefectImageChange = function(input) {
         previewUrl: e.target.result,
         image: null
       });
-      loadedCount++;
-      if (loadedCount === files.length) {
-        renderOverallDefectImages();
-      }
+      renderOverallDefectImages();
     };
     reader.readAsDataURL(file);
   }
