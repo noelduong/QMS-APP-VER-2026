@@ -144,6 +144,9 @@ function doPost(e) {
     else if (action === "uploadImageBase64") result = uploadImageBase64(payload);
     else if (action === "submitReturnAnalysisBatch") result = submitReturnAnalysisBatch(payload);
     else if (action === "deleteRecord") result = deleteRecord(payload);
+    else if (action === "submitPlan") result = submitPlan(payload);
+    else if (action === "deletePlan") result = deletePlan(payload);
+    else if (action === "updatePlanStatus") result = updatePlanStatus(payload);
 
     return ContentService.createTextOutput(JSON.stringify(result))
       .setMimeType(ContentService.MimeType.JSON);
@@ -1698,6 +1701,118 @@ function deleteRecord(payload) {
     });
 
     return { ok: true, general_id: generalId, totalDeleted: totalDeleted };
+  } catch (err) {
+    return { ok: false, err: err.message };
+  }
+}
+
+/* =====================================================
+   PLANNING / SCHEDULING
+   ===================================================== */
+function submitPlan(payload) {
+  try {
+    if (!payload || !payload.date || !payload.type) {
+      return { ok: false, err: "Date and Type are required fields" };
+    }
+
+    const ss = SpreadsheetApp.getActive();
+    const sh = _getOrCreateSheet_(ss, "Plan", [
+      "timestamp", "plan_id", "date", "type", "factory", "order_no", "color", "quantity", "description", "status"
+    ]);
+
+    const ts = _nowStr_();
+    const planId = "P" + Utilities.formatDate(new Date(), TIMEZONE || "GMT+7", "yyyyMMddHHmmssSSS");
+
+    const row = [
+      ts,
+      planId,
+      payload.date,
+      payload.type,
+      payload.factory || "",
+      payload.order_no || "",
+      payload.color || "",
+      payload.quantity ? _toNumber_(payload.quantity) : "",
+      payload.description || "",
+      payload.status || "Pending"
+    ];
+
+    sh.appendRow(row);
+    return { ok: true, plan_id: planId };
+  } catch (err) {
+    return { ok: false, err: err.message };
+  }
+}
+
+function deletePlan(payload) {
+  try {
+    if (!payload || !payload.plan_id) {
+      return { ok: false, err: "plan_id is required" };
+    }
+    const planId = String(payload.plan_id).trim();
+
+    const ss = SpreadsheetApp.getActive();
+    const sh = ss.getSheetByName("Plan");
+    if (!sh) return { ok: false, err: "Plan sheet not found" };
+
+    const data = sh.getDataRange().getValues();
+    if (data.length <= 1) return { ok: true, count: 0 };
+
+    const headers = data[0].map(h => String(h).trim().toLowerCase());
+    const planIdIdx = headers.indexOf("plan_id");
+    if (planIdIdx === -1) {
+      return { ok: false, err: "plan_id column not found in Plan sheet" };
+    }
+
+    let count = 0;
+    for (let r = data.length - 1; r >= 1; r--) {
+      if (String(data[r][planIdIdx]).trim() === planId) {
+        sh.deleteRow(r + 1);
+        count++;
+      }
+    }
+
+    return { ok: true, plan_id: planId, count: count };
+  } catch (err) {
+    return { ok: false, err: err.message };
+  }
+}
+
+function updatePlanStatus(payload) {
+  try {
+    if (!payload || !payload.plan_id || !payload.status) {
+      return { ok: false, err: "plan_id and status are required" };
+    }
+    const planId = String(payload.plan_id).trim();
+    const newStatus = String(payload.status).trim();
+
+    const ss = SpreadsheetApp.getActive();
+    const sh = ss.getSheetByName("Plan");
+    if (!sh) return { ok: false, err: "Plan sheet not found" };
+
+    const data = sh.getDataRange().getValues();
+    if (data.length <= 1) return { ok: false, err: "No data in Plan sheet" };
+
+    const headers = data[0].map(h => String(h).trim().toLowerCase());
+    const planIdIdx = headers.indexOf("plan_id");
+    const statusIdx = headers.indexOf("status");
+    if (planIdIdx === -1 || statusIdx === -1) {
+      return { ok: false, err: "Required columns not found in Plan sheet" };
+    }
+
+    let success = false;
+    for (let r = 1; r < data.length; r++) {
+      if (String(data[r][planIdIdx]).trim() === planId) {
+        sh.getRange(r + 1, statusIdx + 1).setValue(newStatus);
+        success = true;
+        break;
+      }
+    }
+
+    if (success) {
+      return { ok: true, plan_id: planId, status: newStatus };
+    } else {
+      return { ok: false, err: "Plan ID not found" };
+    }
   } catch (err) {
     return { ok: false, err: err.message };
   }

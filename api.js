@@ -8,7 +8,7 @@
 
 const QMS_API = (() => {
 
-  const API_URL = 'https://script.google.com/macros/s/AKfycbyejn5_G0VOsEeXzM0-2ZwmAk0bYAsId965f3bsv-XC4injPTYx1vAUtIdQD_x4HBOS/exec';
+  const API_URL = 'https://script.google.com/macros/s/AKfycbxXytxXqdbh2rA1KO2d_ml3NM5gstvB3fZ4I9yfKjaaO6KC616my7YACWx413_LhB9K/exec';
 
   /* ---- Helper: GET request ---- */
   async function get(params = {}) {
@@ -221,6 +221,30 @@ const QMS_API = (() => {
      */
     async deleteRecord(generalId) {
       return await post('deleteRecord', { general_id: generalId });
+    },
+
+    /**
+     * POST: Submit a planning record
+     * payload: { date, type, factory, order_no, color, quantity, description }
+     */
+    async submitPlan(payload) {
+      return await post('submitPlan', payload);
+    },
+
+    /**
+     * POST: Delete a planning record
+     * payload: { plan_id }
+     */
+    async deletePlan(planId) {
+      return await post('deletePlan', { plan_id: planId });
+    },
+
+    /**
+     * POST: Update status of a planning record
+     * payload: { plan_id, status }
+     */
+    async updatePlanStatus(planId, status) {
+      return await post('updatePlanStatus', { plan_id: planId, status: status });
     }
   };
 })();
