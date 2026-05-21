@@ -8,7 +8,7 @@
 
 const QMS_API = (() => {
 
-  const API_URL = 'https://script.google.com/macros/s/AKfycbxXytxXqdbh2rA1KO2d_ml3NM5gstvB3fZ4I9yfKjaaO6KC616my7YACWx413_LhB9K/exec';
+  const API_URL = 'https://script.google.com/macros/s/AKfycbz8lgi8wXdgg5xoZehK9uVkwux77bXFvoVE3rCwTBwAqCWUk777g4zI-kbTqCoKCpoW/exec';
 
   /* ---- Helper: GET request ---- */
   async function get(params = {}) {
